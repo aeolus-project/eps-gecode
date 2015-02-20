@@ -1,0 +1,7 @@
+== INSTALL ==
+ 2.) Mac OS X
+ 3.) Linux
+
+== Linux ==
+
+    cd build && cmake .. && make

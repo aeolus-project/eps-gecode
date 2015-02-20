@@ -1,0 +1,12 @@
+WINDOWS_ZLIB_DIR = C:\\Users\\REZGUI\\Desktop\\Or-tools\\or-tools\\dependencies\\install
+WINDOWS_ZLIB_NAME=zlib.lib
+WINDOWS_GFLAGS_DIR = C:\\Users\\REZGUI\\Desktop\\Or-tools\\or-tools\\dependencies\\install
+WINDOWS_PROTOBUF_DIR = C:\\Users\\REZGUI\\Desktop\\Or-tools\\or-tools\\dependencies\\install
+WINDOWS_SPARSEHASH_DIR = C:\\Users\\REZGUI\\Desktop\\Or-tools\\or-tools\\dependencies\\install
+WINDOWS_SWIG_BINARY = C:\\Users\\REZGUI\\Desktop\\Or-tools\\or-tools\\dependencies\\install\\swigwin-2.0.4\\swig.exe
+WINDOWS_CLP_DIR = C:\\Users\\REZGUI\\Desktop\\Or-tools\\or-tools\\dependencies\\install
+WINDOWS_CBC_DIR = C:\\Users\\REZGUI\\Desktop\\Or-tools\\or-tools\\dependencies\\install
+# GLPK support not included.
+WINDOWS_JDK_DIR = # Please define JDK root.
+WINDOWS_PYTHON_VERSION = \# Please define the python version (27 by default)
+WINDOWS_PYTHON_PATH = \# Please define WINDOWS_PYTHON_PATH (c:\\python27 by default)

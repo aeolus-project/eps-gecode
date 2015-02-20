@@ -1,0 +1,52 @@
+# Windows specific definitions
+##############################################################
+#               CMake Project Wrapper Makefile               #
+############################################################## 
+
+
+DEL = del
+DELREC = tools\bin\rm.exe -rf
+MKDIR = md
+COPY = copy
+TOUCH = tools\bin\touch.exe
+
+GNU_TOOLS = "MinGW Makefiles" 
+
+install: all
+
+all: release
+release:
+	@- $(MKDIR) build
+	@- cd build && cmake -G ${GNU_TOOLS} -D CMAKE_BUILD_TYPE:STRING=RELEASE -D BUILD_TESTS:BOOL=TRUE START_TESTS:BOOL=FALSE ..
+	
+debug:
+	@- $(MKDIR) build
+	@- cd build && cmake -G ${GNU_TOOLS} -D CMAKE_BUILD_TYPE:STRING=DEBUG -D BUILD_TESTS:BOOL=TRUE START_TESTS:BOOL=FALSE ..
+	
+cleanrelease: clean
+	@- $(DELREC) ./bin/Release/*
+
+cleandebug: clean
+	@- $(DELREC) ./bin/Debug/*
+
+clean:
+	@- $(DELREC) ./build/*
+	@- $(DELREC) ./docs/*.html
+	@- $(DELREC) ./docs/*.css
+	@- $(DELREC) ./docs/*.png
+	@- $(DELREC) ./docs/*.jpg
+	@- $(DELREC) ./docs/*.gif
+	@- $(DELREC) ./docs/*.tiff
+	@- $(DELREC) ./docs/*.php
+	@- $(DELREC) ./docs/search
+	@- $(DELREC) ./docs/installdox
+	
+distclean: clean
+	@- $(DELREC) ./bin/*
+
+cleanall: distclean
+
+#ifeq ($(findstring distclean,$(MAKECMDGOALS)),)
+#    $(MAKECMDGOALS): ./build/Makefile
+#	@ $(MAKE) -C build $(MAKECMDGOALS)
+#endif

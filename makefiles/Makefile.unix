@@ -1,0 +1,66 @@
+
+# Unix specific definitions
+##############################################################
+#               CMake Project Wrapper Makefile               #
+############################################################## 
+
+SHELL := /bin/bash
+DEL    := rm
+DELREC := rm -rf
+MKDIR = mkdir -p
+COPY = cp
+TOUCH = touch
+
+install: all
+
+all: release
+
+release:
+	@- echo "Format Sources Files"
+	@- ./format_sources.sh 2> nul
+	@- $(MKDIR) build
+	@- (cd build >/dev/null 2>&1 && cmake -D CMAKE_BUILD_TYPE:STRING=RELEASE -D BUILD_TESTS:BOOL=TRUE START_TESTS:BOOL=FALSE ..)
+	@- $(MAKE) -C build
+
+debug:
+	@- echo "Format Sources Files"
+	@- ./format_sources.sh 2> nul
+		@- $(MKDIR) build
+	@- (cd build >/dev/null 2>&1 && cmake -D CMAKE_BUILD_TYPE:STRING=DEBUG -D BUILD_TESTS:BOOL=TRUE START_TESTS:BOOL=FALSE ..)
+	@- $(MAKE) -C build
+
+cleanrelease: clean
+	@- $(DELREC) ./bin/Release/*
+
+cleandebug: clean
+	@- $(DELREC) ./bin/Debug/*
+
+clean:
+	@- (cd build >/dev/null 2>&1 && cmake .. >/dev/null 2>&1)
+	@- $(MAKE) --silent -C build clean || true
+	@- $(DELREC) ./build/Makefile
+	@- $(DELREC) ./build/src
+	@- $(DELREC) ./build/test
+	@- $(DELREC) ./build/CMake*
+	@- $(DELREC) ./build/cmake.*
+	@- $(DELREC) ./build/*.cmake
+	@- $(DELREC) ./build/*.txt
+	@- $(DELREC) ./docs/*.html
+	@- $(DELREC) ./docs/*.css
+	@- $(DELREC) ./docs/*.png
+	@- $(DELREC) ./docs/*.jpg
+	@- $(DELREC) ./docs/*.gif
+	@- $(DELREC) ./docs/*.tiff
+	@- $(DELREC) ./docs/*.php
+	@- $(DELREC) ./docs/search
+	@- $(DELREC) ./docs/installdox
+	
+distclean: clean
+	@- $(DELREC) ./bin/*
+
+cleanall: distclean
+
+#ifeq ($(findstring distclean,$(MAKECMDGOALS)),)
+#    $(MAKECMDGOALS): ./build/Makefile
+#	@ $(MAKE) -C build $(MAKECMDGOALS)
+#endif
