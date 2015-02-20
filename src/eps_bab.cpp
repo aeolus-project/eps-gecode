@@ -54,8 +54,6 @@
 
 using namespace stl_util;
 
-#define MAX_SIZE_PROBLEM 16
-
 struct ProblemCompare {
     bool _less;
 
@@ -477,13 +475,13 @@ EPS_BAB::EPS_BAB(Gecode::Space* s, const MySearchOptions& o)
     _master->decomposeProblems(_space_home->_space_hook, optSearch);
 
     unsigned int time_solve = static_cast<unsigned int>(floor(this->_timer_decomposition.stop()));
-    std::cerr << "Time resolution : " << time_solve << std::endl;
+    //std::cerr << "Time resolution : " << time_solve << std::endl;
     //getchar();
-    exit(0);
+    //exit(0);
 
     _master->done = true;
 
-    exit(0);
+    //exit(0);
 
     if(_mode_decomposition == SEQUENTIAL) {
         _space_home->_time_decomposition = static_cast<unsigned int>(floor(this->_timer_decomposition.stop()));
@@ -1399,7 +1397,7 @@ void EPS_BAB::Worker::decomposeProblems(MyFlatZincSpace* s, const MySearchOption
     unsigned int nb_bool_decision_variables = s->bv.size();
 
     unsigned int nb_decision_variables = nb_int_decision_variables + nb_bool_decision_variables;
-    //!FIXME Bug if nb_decision_variables == 1
+
     if(nb_decision_variables == 0) {
         std::cerr << "No decision variables for decomposition : " << std::endl;
         return;
@@ -1760,9 +1758,6 @@ void EPS_BAB::Worker::decomposeProblems(MyFlatZincSpace* s, const MySearchOption
         Gecode::Search::Statistics stat = dbdfs.statistics();
         s->_nodes_decomposition = stat.node;
         s->_fails_decomposition = stat.fail;
-
-        //TODO !!!
-        //s->_memory_decomposition = stat.memory;
 
         if(_tuples_int_ndi) {
             _tuples_int_ndi->finalize();

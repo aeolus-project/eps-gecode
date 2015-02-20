@@ -43,6 +43,8 @@
 
 #include <vector>
 #include <string>
+#include <list>
+#include <fstream>
 
 #include "search.h"
 #include "flatzinc.h"
@@ -366,9 +368,9 @@ EPS_DFS::EPS_DFS(Gecode::Space* s, const MySearchOptions& o)
     //t_solve.start();
     _master->RDFS(_space_home->_space_hook, optSearch);
     unsigned int time_solve = static_cast<unsigned int>(floor(this->_timer_decomposition.stop()));
-    std::cerr << "Time resolution : " << time_solve << std::endl;
+    //std::cerr << "Time resolution : " << time_solve << std::endl;
     //getchar();
-    exit(0);
+    //exit(0);
 
     _master->decomposeProblems(_space_home->_space_hook, optSearch);
 
@@ -1246,11 +1248,17 @@ EPS_DFS::nogoods(void) {
 ///decomposeProblems
 void
 EPS_DFS::Worker::RDFS(MyFlatZincSpace* s, const MySearchOptions& o) {
+ _group_tuples.clear();
 
-    MySearchOptions opt(o);
-    opt.threads = 1;
+
+    MySearchOptions opt = o;
+    opt.threads = o.threads;
     opt.clone = false;
 
+    unsigned int P = o.nb_problems;
+#ifdef _DEBUG
+    std::cerr << "expected problems : " << P << std::endl;
+#endif
     unsigned int nb_int_decision_variables = s->iv.size();
     unsigned int nb_bool_decision_variables = s->bv.size();
 
@@ -1265,21 +1273,29 @@ EPS_DFS::Worker::RDFS(MyFlatZincSpace* s, const MySearchOptions& o) {
     unsigned int level = 0;
 
     unsigned int nb_solutions = 0;
+
     BoundedDFS dbdfs(NULL, opt);
 
     s->_iterations_decomposition = 0;
 
-    do {
+    /// Queue of solutions
+
+    std::list<MyFlatZincSpace*> sub_problems;
+    std::list<MyFlatZincSpace*> tmp_sub_problems;
+
+    Gecode::StatusStatistics sstat;
+    Gecode::SpaceStatus ss;
+
+     do {
 
         s->_iterations_decomposition++;
 
         level = 0;
-        /*
-        delete dbdfs.best;
-        dbdfs.best = NULL;
-        delete dbdfs.cur;
-        dbdfs.cur = NULL;
-        */
+
+        if(s->failed()) {
+            return;
+        }
+
         MyFlatZincSpace* space_work = static_cast<MyFlatZincSpace*>(s->clone());
 
         if(nb_bool_decision_variables && _tuples_bool_ndi && _tuples_bool_ndi->tuples()) {
@@ -1304,15 +1320,26 @@ EPS_DFS::Worker::RDFS(MyFlatZincSpace* s, const MySearchOptions& o) {
 
             //Add table constraint
             Gecode::extensional(*space_work, vars_ndi, *_tuples_int_ndi);
-            std::cerr << "Add table constraint" << std::endl;
-            std::cerr << "nbTuples : " << _tuples_int_ndi->tuples() << std::endl;
-            std::cerr << "arity : " << _tuples_int_ndi->arity() << std::endl;
 
             level += _tuples_int_ndi->arity();
         }
 
         dbdfs.reset(space_work);
 
+        /*
+        Gecode::StatusStatistics sstat;
+        Gecode::SpaceStatus ss = space_work->status(sstat);
+        */
+
+        /*
+        for (unsigned int i = 0; i < space_work->iv.size(); i++) {
+            std::cerr << i << " => sizeIntVar : " << space_work->iv[i].size() << std::endl;
+        }
+
+        for (unsigned int i = 0; i < space_work->bv.size(); i++) {
+            std::cerr << i << " => sizeBoolVar : " << space_work->bv[i].size() << std::endl;
+        }
+        */
 
         //Release tuples
         //
@@ -1326,21 +1353,23 @@ EPS_DFS::Worker::RDFS(MyFlatZincSpace* s, const MySearchOptions& o) {
 
             unsigned int old_level = level;
 
-            int levels[2] = {opt.first_level, nb_decision_variables};
-            level += levels[s->_iterations_decomposition-1];
+            for(unsigned int i = level; i < nb_decision_variables; i++) {
 
-            if(level == old_level) {
                 level++;
+
+                if(i < nb_bool_decision_variables) {
+                    product_domain *= space_work->bv[i].size();
+                    if(product_domain * space_work->bv[i].size() > P) {
+                        break;
+                    }
+                } else {
+                    product_domain *= space_work->iv[i - nb_bool_decision_variables].size();
+                    if(product_domain * space_work->iv[i - nb_bool_decision_variables].size() > P) {
+                        break;
+                    }
+                }
+                //std::cerr << "product domain : " << product_domain << std::endl;
             }
-
-            if(level > nb_decision_variables) {
-                level = nb_decision_variables;
-            }
-
-            std::cerr << "oldlevel : " << old_level << std::endl;
-            std::cerr << "newlevel : " << level << std::endl;
-            std::cerr << "iteration DFS : " << s->_iterations_decomposition << std::endl;
-
 
             if(level) {
                 Gecode::BoolVarArgs vars_bool_wanted_visited;
@@ -1355,13 +1384,13 @@ EPS_DFS::Worker::RDFS(MyFlatZincSpace* s, const MySearchOptions& o) {
                 }
 
                 if(vars_bool_wanted_visited.size()) {
-                    //Gecode::branch(*space_work, vars_bool_wanted_visited, Gecode::TieBreak<Gecode::IntVarBranch>(Gecode::INT_VAR_NONE()), Gecode::INT_VALUES_MIN());
-                    Gecode::branch(*space_work, vars_bool_wanted_visited, Gecode::TieBreak<Gecode::IntVarBranch>(Gecode::INT_VAR_SIZE_MIN()), Gecode::INT_VALUES_MIN());
+                    Gecode::branch(*space_work, vars_bool_wanted_visited, Gecode::TieBreak<Gecode::IntVarBranch>(Gecode::INT_VAR_NONE()), Gecode::INT_VALUES_MIN());
+                    //Gecode::branch(*space_work, vars_bool_wanted_visited, Gecode::TieBreak<Gecode::IntVarBranch>(Gecode::INT_VAR_SIZE_MIN()), Gecode::INT_VALUES_MIN());
                 }
 
                 if(vars_int_wanted_visited.size()) {
-                    //Gecode::branch(*space_work, vars_int_wanted_visited, Gecode::TieBreak<Gecode::IntVarBranch>(Gecode::INT_VAR_NONE()), Gecode::INT_VALUES_MIN());
-                    Gecode::branch(*space_work, vars_int_wanted_visited, Gecode::TieBreak<Gecode::IntVarBranch>(Gecode::INT_VAR_SIZE_MIN()), Gecode::INT_VALUES_MIN());
+                    Gecode::branch(*space_work, vars_int_wanted_visited, Gecode::TieBreak<Gecode::IntVarBranch>(Gecode::INT_VAR_NONE()), Gecode::INT_VALUES_MIN());
+                    //Gecode::branch(*space_work, vars_int_wanted_visited, Gecode::TieBreak<Gecode::IntVarBranch>(Gecode::INT_VAR_SIZE_MIN()), Gecode::INT_VALUES_MIN());
                 }
 
             }
@@ -1378,46 +1407,154 @@ EPS_DFS::Worker::RDFS(MyFlatZincSpace* s, const MySearchOptions& o) {
                 }
 
                 if(vars_bool_already_visited.size()) {
-                    //Gecode::branch(*space_work, vars_bool_already_visited, Gecode::TieBreak<Gecode::IntVarBranch>(Gecode::INT_VAR_NONE()), Gecode::INT_VALUES_MIN());
-                    Gecode::branch(*space_work, vars_bool_already_visited, Gecode::TieBreak<Gecode::IntVarBranch>(Gecode::INT_VAR_SIZE_MIN()), Gecode::INT_VALUES_MIN());
+                    Gecode::branch(*space_work, vars_bool_already_visited, Gecode::TieBreak<Gecode::IntVarBranch>(Gecode::INT_VAR_NONE()), Gecode::INT_VALUES_MIN());
+                    //Gecode::branch(*space_work, vars_bool_already_visited, Gecode::TieBreak<Gecode::IntVarBranch>(Gecode::INT_VAR_SIZE_MIN()), Gecode::INT_VALUES_MIN());
                 }
 
                 if(vars_int_already_visited.size()) {
-                    //Gecode::branch(*space_work, vars_int_already_visited, Gecode::TieBreak<Gecode::IntVarBranch>(Gecode::INT_VAR_NONE()), Gecode::INT_VALUES_MIN());
-                    Gecode::branch(*space_work, vars_int_already_visited, Gecode::TieBreak<Gecode::IntVarBranch>(Gecode::INT_VAR_SIZE_MIN()), Gecode::INT_VALUES_MIN());
+                    Gecode::branch(*space_work, vars_int_already_visited, Gecode::TieBreak<Gecode::IntVarBranch>(Gecode::INT_VAR_NONE()), Gecode::INT_VALUES_MIN());
+                    //Gecode::branch(*space_work, vars_int_already_visited, Gecode::TieBreak<Gecode::IntVarBranch>(Gecode::INT_VAR_SIZE_MIN()), Gecode::INT_VALUES_MIN());
                 }
-
-                //Gecode::branch(*space_work, space_work->iv, Gecode::TieBreak<Gecode::IntVarBranch>(Gecode::INT_VAR_SIZE_MIN()), Gecode::INT_VALUES_MIN());
-
             }
 
+            //int nb_tuples = 0;
+
+            //Do not forget if stat(space_work) == SS_FAILED
+            //Gecode::IntArgs tuple(level > nb_int_decision_variables ? nb_int_decision_variables - level : level);
+            //Gecode::IntArgs tuple(level);
+
+            //Bug fixed in loop solution
+            //m.acquire();
             MyFlatZincSpace* solution = static_cast<MyFlatZincSpace*>(dbdfs.next());
-
+            //m.release();
             while(solution) {
+                /*
+                std::cerr << "IntVar " << std::endl;
+                for (unsigned int i = 0; i < solution->iv.size(); i++) {
+                    if(solution->iv[i].assigned()) {
+                        std::cerr << i << " : " << solution->iv[i].val() << std::endl;
+                    } else  {
+                        std::cerr << i << " : pas d'assignement" << std::endl;
+                    }
+                }
 
-                bool isSolution = level == nb_decision_variables;
 
+                std::cerr << "BoolVar " << std::endl;
+                for (unsigned int i = 0; i < solution->bv.size(); i++) {
+                    if(solution->bv[i].assigned()) {
+                        std::cerr << i << " : " << solution->bv[i].val() << std::endl;
+                    } else  {
+                        std::cerr << i << " : pas d'assignement" << std::endl;
+                    }
+                }
+                */
+/*
+                bool isSolution = solution->iv[solution->optVar()].assigned();
                 if(isSolution) {
-
-                    engine().solution(solution);
-                    nb_solutions++;
-                    //std::cerr << "Best solution found in dfs decomposition\n";
-
-                } else {
-
-                    Gecode::IntArgs tuple_int;
-                    Gecode::IntArgs tuple_bool;
-
-                    //no add the objective val int tuple
-                    for (unsigned int i = 0; i < level; i++) {
-                        //std::cerr << i+1 << " : " << solution->iv[i].val() << std::endl;
-                        if(i < nb_bool_decision_variables) {
-                            tuple_bool << solution->bv[i].val();
-                        } else {
-                            tuple_int << solution->iv[i - nb_bool_decision_variables].val();
+                    for (int i = 0; i < solution->iv.size(); ++i) {
+                        if(!solution->iv[i].assigned()) {
+                            isSolution = false;
+                            break;
                         }
                     }
 
+                    if(isSolution) {
+                        for (int i = 0; i < solution->bv.size(); ++i) {
+                            if(!solution->bv[i].assigned()) {
+                                isSolution = false;
+                                break;
+                            }
+                        }
+                    }
+                }
+*/
+		bool isSolution = false;
+                if(isSolution) {
+
+                    //nb_tuples = 0;
+
+                    //this mehod set the best solution
+                    engine().solution(solution);
+
+                    nb_solutions++;
+
+#ifdef _DEBUG
+                    std::cerr << "solution found in dfs decomposition\n";
+#endif
+
+                } else {
+
+                    //nb_tuples++;
+                    sub_problems.push_back(solution);
+                    //std::cerr << nb_tuples << std::endl;
+
+                }
+                //m.acquire();
+                solution = static_cast<MyFlatZincSpace*>(dbdfs.next());
+                //m.release();
+
+            }
+
+//#ifdef _DEBUG
+
+            //std::stable_sort(sub_problems.begin(), sub_problems.end(), ProblemCompare(true));
+//#endif
+
+            while(!sub_problems.empty()) {
+                //MyFlatZincSpace* sb_problem = sub_problems.pop();
+                MyFlatZincSpace* sb_problem = sub_problems.front();
+                sub_problems.pop_front();
+#ifdef _DEBUG
+                std::cerr << sb_problem->iv[sb_problem->optVar()] << std::endl;
+#endif
+
+                Gecode::IntArgs tuple_int;
+                Gecode::IntArgs tuple_bool;
+
+                //no add the objective val int tuple
+                for (unsigned int i = 0; i < level; i++) {
+                    //std::cerr << i+1 << " : " << solution->iv[i].val() << std::endl;
+                    if(i < nb_bool_decision_variables) {
+                        tuple_bool << sb_problem->bv[i].val();
+                    } else {
+                        tuple_int << sb_problem->iv[i - nb_bool_decision_variables].val();
+                    }
+                }
+
+                //Version no collapse last level
+                if(tuple_bool.size()) {
+                    _tuples_bool_ndi->add(tuple_bool);
+                }
+
+                if(tuple_int.size()) {
+                    _tuples_int_ndi->add(tuple_int);
+                }
+
+                //Version with collapse last level
+                /*
+                if(level < nb_decision_variables) {
+
+                    if(level < nb_bool_decision_variables) {
+                        tuple_bool << 0;
+
+                        //for(Gecode::BoolVarValues i(sb_problem->bv[level]); i(); i++) {
+                        for(int a = sb_problem->bv[level].min(); a <= sb_problem->bv[level].max(); a++) {
+                            tuple_bool[tuple_bool.size()-1] = a;
+                            _tuples_bool_ndi->add(tuple_bool);
+                        }
+                    } else {
+                        tuple_int << 0;
+
+                        for(Gecode::IntVarValues i(sb_problem->iv[level - nb_bool_decision_variables]); i(); ++i) {
+                            //for(int a = sb_problem->iv[level - nb_bool_decision_variables].min(); a <= sb_problem->iv[level - nb_bool_decision_variables].max(); a++) {
+                            tuple_int[tuple_int.size()-1] = i.val();
+                            _tuples_int_ndi->add(tuple_int);
+                        }
+                    }
+                } else {
+
+                    //nb_tuples++;
+                    //std::cerr << "tuple added : " << nb_tuples << std::endl;
                     if(tuple_bool.size()) {
                         _tuples_bool_ndi->add(tuple_bool);
                     }
@@ -1425,18 +1562,16 @@ EPS_DFS::Worker::RDFS(MyFlatZincSpace* s, const MySearchOptions& o) {
                     if(tuple_int.size()) {
                         _tuples_int_ndi->add(tuple_int);
                     }
-
-                    delete solution;
                 }
-
-                solution = static_cast<MyFlatZincSpace*>(dbdfs.next());
+                */
+                //Fix memory leak
+                delete sb_problem;
             }
         }
 
         Gecode::Search::Statistics stat = dbdfs.statistics();
         s->_nodes_decomposition = stat.node;
         s->_fails_decomposition = stat.fail;
-
 
         if(_tuples_int_ndi) {
             _tuples_int_ndi->finalize();
@@ -1446,8 +1581,8 @@ EPS_DFS::Worker::RDFS(MyFlatZincSpace* s, const MySearchOptions& o) {
         }
 
 
-        if(_tuples_int_ndi && _tuples_bool_ndi) {
-            product_domain = _tuples_bool_ndi->tuples() ? _tuples_bool_ndi->tuples() : _tuples_int_ndi->tuples();
+        if(_tuples_int_ndi || _tuples_bool_ndi) {
+            product_domain = _tuples_bool_ndi && _tuples_bool_ndi->tuples() ? _tuples_bool_ndi->tuples() : _tuples_int_ndi->tuples();
         } else {
             product_domain = 0;
         }
@@ -1456,23 +1591,65 @@ EPS_DFS::Worker::RDFS(MyFlatZincSpace* s, const MySearchOptions& o) {
 
         s->_depth_decomposition = level;
 
-        if(product_domain == 0 || level == nb_decision_variables) {
+#ifdef _DEBUG
+        std::cerr << "depth decomposition : " << level << std::endl;
+        std::cerr << "number of tuples : " << product_domain << std::endl;
+#endif
+
+        if(product_domain == 0) {
             delete _tuples_int_ndi;
             _tuples_int_ndi = NULL;
             delete _tuples_bool_ndi;
             _tuples_bool_ndi = NULL;
 
+#ifdef _DEBUG
             if(nb_solutions > 0) {
-                std::cerr << "Problem SAT detected in problem decomposition\n";
-                std::cerr << "NbSolutions : " << nb_solutions << std::endl;
+                //std::cerr << "Problem SAT detected in problem decomposition\n";
+                //std::cerr << "NbSolutions : " << nb_solutions << std::endl;
             } else {
-                std::cerr << "Problem UNSAT detected in dfsbound splitter\n";
+                //std::cerr << "Problem UNSAT detected in dfsbound splitter\n";
+            }
+#endif
+            break;
+        }
+
+        int newP = P;
+
+        if(product_domain >= newP) {
+
+            int q = (product_domain / newP) + 1;
+            _group_tuples.resize(newP, q);
+
+            size_t sum = newP*q;
+
+            for(size_t i = newP-1; i >=0; i--) {
+                if(sum != product_domain) {
+                    --_group_tuples[i];
+                    --sum;
+                } else {
+                    break;
+                }
             }
 
+            product_domain = newP;
+
+            //STOP
+            break;
+        } else if(product_domain == newP) {
+
+            _group_tuples.resize(newP, 1);
+
+            //STOP
+            break;
+        } else if(level == nb_decision_variables) {
+            _group_tuples.resize(product_domain, 1);
+
+            //STOP
             break;
         }
 
     } while(true);
+        
 
 
 }

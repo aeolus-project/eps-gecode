@@ -434,6 +434,7 @@ int main(int argc, char** argv) {
                 fg->createBranchers();
 
             }
+
             //std::cerr << "number of variables int models : " << fg->iv.size() << std::endl;
             //std::cerr << "number of variables bool models : " << fg->bv.size() << std::endl;
             //getchar();
@@ -479,51 +480,52 @@ int main(int argc, char** argv) {
                 }
                 lockF.unlock();
             }
-
-            //Set status to space_hook
-            if (fg->_space_hook && fg->_space_hook->status() == SS_FAILED) {
-                std::cerr << "SPACE HOOK FAILED" << endl;
-            }
-
-            /*
-            std::cerr << "decision variables : " << fg->_space_hook->iv.size() << std::endl;
-            cerr << "indexVar Obj : " << fg->_space_hook->optVar() << endl;
-            for(int i = 0; i < fg->_space_hook->iv.size(); i++) {
-                cerr << "[" << fg->_space_hook->iv[i].min() << "..." << fg->_space_hook->iv[i].max() << "], ";
-            }
-            cerr << endl;
-
-
-            std::cerr << "decision variables : " << fg->iv.size() << std::endl;
-            cerr << "indexVar Obj : " << fg->optVar() << endl;
-            for(int i = 0; i < fg->iv.size(); i++) {
-                cerr << "[" << fg->iv[i].min() << "..." << fg->iv[i].max() << "], ";
-            }
-            cerr << endl;
-            getchar();
-            */
-
-
-            if (opt.output()) {
-                std::ofstream os(opt.output());
-                if (!os.good()) {
-                    std::cerr << "Could not open file " << opt.output() << " for output."
-                              << std::endl;
-                    exit(EXIT_FAILURE);
-                }
-
-                fg->run(os, getBaseName(opt.name()), p, opt, t_total);
-                os.close();
-            } else {
-                fg->run(std::cout, getBaseName(opt.name()), p, opt, t_total);
-            }
-
-        } else {
-            exit(EXIT_FAILURE);
         }
 
-        delete fg;
+        //Set status to space_hook
+        if (fg->_space_hook && fg->_space_hook->status() == SS_FAILED) {
+            std::cerr << "SPACE HOOK FAILED" << endl;
+        }
+
+        /*
+        std::cerr << "decision variables : " << fg->_space_hook->iv.size() << std::endl;
+        cerr << "indexVar Obj : " << fg->_space_hook->optVar() << endl;
+        for(int i = 0; i < fg->_space_hook->iv.size(); i++) {
+            cerr << "[" << fg->_space_hook->iv[i].min() << "..." << fg->_space_hook->iv[i].max() << "], ";
+        }
+        cerr << endl;
+
+
+        std::cerr << "decision variables : " << fg->iv.size() << std::endl;
+        cerr << "indexVar Obj : " << fg->optVar() << endl;
+        for(int i = 0; i < fg->iv.size(); i++) {
+            cerr << "[" << fg->iv[i].min() << "..." << fg->iv[i].max() << "], ";
+        }
+        cerr << endl;
+        getchar();
+        */
+
+
+        if (opt.output()) {
+            std::ofstream os(opt.output());
+            if (!os.good()) {
+                std::cerr << "Could not open file " << opt.output() << " for output."
+                          << std::endl;
+                exit(EXIT_FAILURE);
+            }
+
+            fg->run(os, getBaseName(opt.name()), p, opt, t_total);
+            os.close();
+        } else {
+            fg->run(std::cout, getBaseName(opt.name()), p, opt, t_total);
+        }
+
+    } else {
+        exit(EXIT_FAILURE);
     }
+
+    delete fg;
+
     //getchar();
     return 0;
 }
