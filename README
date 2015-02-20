@@ -58,12 +58,6 @@
   		yum groupinstall "Development Tools"
   	> Ubuntu :
  		apt-get install build-essential	
-  	
-  * XML2 Library v2.0+
-  	> Fedora :
-  		yum install libxml2-devel
-  	> Ubuntu :
- 		apt-get install libxml2-dev
      
 == 2. BUILDING ==
  
