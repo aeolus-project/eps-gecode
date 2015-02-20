@@ -445,16 +445,16 @@ EPS_BAB::EPS_BAB(Gecode::Space* s, const MySearchOptions& o)
 
     //Start Timer
     _timer_decomposition.start();
-    /*
+
     if(optSearch.mode_decomposition == MyFlatZincOptions::ModeDecomposition::DBDFSwP
             && optSearch.threads > 1) {
         _mode_decomposition = PARALLEL;
     } else {
         _mode_decomposition = SEQUENTIAL;
     }
-    */
+
     //Force sequential
-    _mode_decomposition = SEQUENTIAL;
+    //_mode_decomposition = SEQUENTIAL;
 
     if(_mode_decomposition == SEQUENTIAL) {
         optSearch.nb_problems = o.nb_problems;

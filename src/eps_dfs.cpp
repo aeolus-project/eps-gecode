@@ -344,11 +344,14 @@ EPS_DFS::EPS_DFS(Gecode::Space* s, const MySearchOptions& o)
     _timer_decomposition.start();
 
     if(optSearch.mode_decomposition == MyFlatZincOptions::ModeDecomposition::DBDFSwP
-            && o.threads > 1) {
+            && optSearch.threads > 1) {
         _mode_decomposition = PARALLEL;
     } else {
         _mode_decomposition = SEQUENTIAL;
     }
+
+    //Force sequential
+    //_mode_decomposition = SEQUENTIAL;
 
     if(_mode_decomposition == SEQUENTIAL) {
         optSearch.nb_problems = o.nb_problems;
@@ -363,21 +366,23 @@ EPS_DFS::EPS_DFS(Gecode::Space* s, const MySearchOptions& o)
     _space_home->_space_hook->_depth_decomposition = 0;
 
     _master->done = false;
-
     //Gecode::Support::Timer t_solve;
     //t_solve.start();
-    _master->RDFS(_space_home->_space_hook, optSearch);
+
+    _master->decomposeProblems(_space_home->_space_hook, optSearch);
+
     unsigned int time_solve = static_cast<unsigned int>(floor(this->_timer_decomposition.stop()));
     //std::cerr << "Time resolution : " << time_solve << std::endl;
     //getchar();
     //exit(0);
 
-    _master->decomposeProblems(_space_home->_space_hook, optSearch);
-
     _master->done = true;
+
+    //exit(0);
 
     if(_mode_decomposition == SEQUENTIAL) {
         _space_home->_time_decomposition = static_cast<unsigned int>(floor(this->_timer_decomposition.stop()));
+
         //std::cerr << "decomposition problem done" << std::endl;
 
         //No worker for decomposition
@@ -396,6 +401,7 @@ EPS_DFS::EPS_DFS(Gecode::Space* s, const MySearchOptions& o)
                 _tuples_int_resolution.back()->finalize();
             }
         }
+
         delete _master->_tuples_bool_ndi;
         delete _master->_tuples_int_ndi;
         _master->_tuples_bool_ndi = NULL;
@@ -420,16 +426,19 @@ EPS_DFS::EPS_DFS(Gecode::Space* s, const MySearchOptions& o)
     _space_home->_iterations_decomposition = _space_home->_space_hook->_iterations_decomposition;
     _space_home->_depth_decomposition = _space_home->_space_hook->_depth_decomposition;
 
+
     _space_home->_problems = _groups_tuples_resolution.size();
 
     _space_home->_time_max_inactivity = 0;
     _already_timer_max_inactivity_started = false;
 
+    //in case of _mode_decomposition
     if(_master->_group_tuples.empty() && _space_home->_problems == 0) {
         n_busy = 0;
         std::cerr << "Problem resolved in sequential dbdfs decomposition !!!\n";
         return;
     }
+
     /*
     Gecode::StatusStatistics sstat;
     _space_home->status(sstat);
@@ -502,12 +511,17 @@ EPS_DFS::solution(Gecode::Space* s) {
 forceinline void
 EPS_DFS::Worker::find(void) {
 
+
     if(mode_search == DECOMPOSITION) {
 
         engine().lockFindJobDecomposition();
 
         unsigned int index_tuple_last = engine()._current_index_tuple_decomposition + engine()._master->_group_tuples[engine()._current_problem_decomposition];
-
+        /*
+        std::cerr << engine()._group_tuples.size() << std::endl;
+        std::cerr << engine()._current_index_tuple_decomposition << std::endl;
+        std::cerr << index_tuple_last << std::endl;
+        */
         if(this->_tuples_bool_ndi) {
             delete this->_tuples_bool_ndi;
         }
@@ -553,6 +567,7 @@ EPS_DFS::Worker::find(void) {
         //Lock this instruction because concurrent access to space hook must be protected
         MyFlatZincSpace* space_for_decomposition = static_cast<MyFlatZincSpace*>(engine()._space_home->_space_hook->clone(false));
 
+
         engine()._current_index_tuple_decomposition = index_tuple_last;
         engine()._current_problem_decomposition++;
 
@@ -595,16 +610,7 @@ EPS_DFS::Worker::find(void) {
             if(engine()._space_home->_depth_decomposition < space_for_decomposition->_depth_decomposition) {
                 engine()._space_home->_depth_decomposition = space_for_decomposition->_depth_decomposition;
             }
-            //std::cerr << "nbTuples by worker " << this->id << " : " << std::max(_tuples_bool_ndi->tuples(), _tuples_int_ndi->tuples()) << std::endl;
-            /*
-            //m.acquire();
-            if(best) {
-                std::cerr << "best solution " << static_cast<MyFlatZincSpace*>(best)->iv[static_cast<MyFlatZincSpace*>(best)->optVar()].val() << std::endl;
-            } else {
-                std::cerr << "no best solution " << std::endl;
-            }
-            //m.release();
-            */
+
             engine()._space_home->_problems = engine()._groups_tuples_resolution.size();
         }
 
@@ -617,6 +623,7 @@ EPS_DFS::Worker::find(void) {
             fprintf(stderr, "Decomposition by worker %d done => 0 problems generated (UNSAT)\n", this->id);
         }
 #endif
+
         if(engine()._nb_workers_decomposition_done == engine().workers()) {
             engine()._space_home->_time_decomposition = static_cast<unsigned int>(floor(engine()._timer_decomposition.stop()));
 #ifdef _DEBUG
@@ -638,14 +645,11 @@ EPS_DFS::Worker::find(void) {
     }
 
     engine().lockFindJobResolution();
-    //std::cerr << engine()._current_problem_resolution << std::endl;
-    //std::cerr << engine()._groups_tuples_resolution.size() << std::endl;
+
     if(engine()._current_problem_resolution < engine()._groups_tuples_resolution.size()) {
 
         _timer_problem.start();
 
-        //Generate distribution approach
-        //
         if(engine().optSearch.mode_search == MyFlatZincOptions::FZ_SEARCH_EPS_GRID_GENERATION) {
             std::string file_problem(*engine()._space_home->_name_instance + "_sp_" + Convert2String(engine()._current_problem) + ".txt");
 
@@ -657,11 +661,90 @@ EPS_DFS::Worker::find(void) {
             }
 
 
+            unsigned int index_tuple_last = engine()._current_index_tuple_resolution + engine()._groups_tuples_resolution[engine()._current_problem_resolution];
+
+            Gecode::TupleSet& bool_tuples = *engine()._tuples_bool_resolution[engine()._current_index_group_tuple_resolution];
+            int nb_bool_tuples = bool_tuples.tuples();
+            if(nb_bool_tuples) {
+                int arity_bool = bool_tuples.arity();
+
+                //std::cerr << "bv[";
+                os << "v ";
+                for(int i = 0; i < arity_bool; i++) {
+                    os << i << " ";
+                    //    std::cerr << i << ", ";
+                }
+                //std::cerr << "]\n";
+                os << "\n";
+
+                for(unsigned int i = engine()._current_index_tuple_resolution; i < index_tuple_last; i++) {
+                    Gecode::IntArgs tuple(arity_bool, bool_tuples[i]);
+
+                    os << "t ";
+                    for(int j = 0; j < tuple.size(); j++) {
+                        os << tuple[j] << " ";
+                    }
+                    os << "\n";
+
+
+                }
+
+            }
+
+            Gecode::TupleSet& int_tuples = *engine()._tuples_int_resolution[engine()._current_index_group_tuple_resolution];
+            int nb_int_tuples = int_tuples.tuples();
+            if(nb_int_tuples) {
+                int arity_int = int_tuples.arity();
+
+                //std::cerr << "iv[";
+                os << "v ";
+                for(int i = 0; i < arity_int; i++) {
+                    os << i + engine()._space_home->bv.size() << " ";
+                    //    std::cerr << i << ", ";
+                }
+                //std::cerr << "]\n";
+                os << "\n";
+
+                for(unsigned int i = engine()._current_index_tuple_resolution; i < index_tuple_last; i++) {
+                    Gecode::IntArgs tuple(arity_int, int_tuples[i]);
+
+                    os << "t ";
+                    for(int j = 0; j < tuple.size(); j++) {
+                        os << tuple[j] << " ";
+                    }
+                    os << "\n";
+                    /*
+                    std::cerr << "tuple[";
+                    for(int j = 0; j < tuple.size(); j++) {
+                    	std::cerr << tuple[j] << ", ";
+                    }
+                    std::cerr << "]\n";
+                    */
+                }
+            }
+
+
+            if(index_tuple_last+1 > std::max(nb_int_tuples, nb_bool_tuples)) {
+
+                engine()._current_index_tuple_resolution = 0;
+                engine()._current_index_group_tuple_resolution++;
+
+            } else {
+                engine()._current_index_tuple_resolution = index_tuple_last;
+            }
+
+            engine()._current_problem_resolution++;
+
+            os.close();
+            idle = true;
+            engine()._current_problem++;
+
+        } else {
             idle = false;
             d = 0;
 
-
             MyFlatZincSpace* space_resolution = static_cast<MyFlatZincSpace*>(engine()._space_home->clone(false)); //cloning for independant worker
+
 
 
             unsigned int index_tuple_last = engine()._current_index_tuple_resolution + engine()._groups_tuples_resolution[engine()._current_problem_resolution];
@@ -693,8 +776,16 @@ EPS_DFS::Worker::find(void) {
                     //    std::cerr << j << ", ";
                 }
 
+                //std::cerr << "]\n";
+                //std::cerr << "decision variables : " << s->args_iv.size() << std::endl;
+                //if(nb_bool_tuples == 1) {
+                //    for(int i = 0; i < arity_bool; i++) {
+                //        Gecode::rel(*space_resolution, vars[i], Gecode::IRT_EQ, tuples[0][i]);
+                //    }
+                //
+                //} else {
                 Gecode::extensional(*space_resolution, vars, tuples, Gecode::EPK_DEF, Gecode::ICL_DOM);
-
+                //}
             }
             //std::cerr << "Problem " << engine()._current_problem_resolution << "\n";
 
@@ -716,7 +807,33 @@ EPS_DFS::Worker::find(void) {
                     tuples.add(tuple);
                 }
                 tuples.finalize();
+                /*
+                const int nb_tuples = tuples.tuples();
 
+                int* values_vertical = new int[nb_tuples];
+                for(unsigned int i = 0; i < tuples.arity(); i++) {
+
+                	for(unsigned int j = 0; j < nb_tuples; j++) {
+                		values_vertical[j] = tuples[j][i];
+                	}
+                	Gecode::IntSet values(values_vertical, nb_tuples);
+
+                	//Gecode::IntVar x(*space_resolution, values);
+
+                	Gecode::dom(*space_resolution, space_resolution->iv[i], values);
+
+                	//std::cerr << space_resolution->iv[i] << " (before) => ";
+                	//space_resolution->iv[i].update(*space_resolution, false, x);
+
+
+                	//Gecode::rel(*space_resolution, space_resolution->iv[i], Gecode::IRT_GQ, space_resolution->iv[i].min());
+                	//Gecode::rel(*space_resolution, space_resolution->iv[i], Gecode::IRT_LQ, space_resolution->iv[i].max());
+                }
+                delete [] values_vertical;
+                */
+                //for(unsigned int i = 0; i < tuples.arity(); i++) {
+                //    std::cerr << space_resolution->iv[i] << " (after)\n";
+                //}
 
 
                 Gecode::IntVarArgs vars(arity_int);
@@ -726,10 +843,37 @@ EPS_DFS::Worker::find(void) {
                     //    std::cerr << i << ", ";
                 }
 
+                //std::cerr << "]\n\n";
 
+                //std::cerr << "decision variables : " << s->args_iv.size() << std::endl;
+                //if(nb_int_tuples == 1) {
+                //    for(int i = 0; i < arity_int; i++) {
+                //        Gecode::rel(*space_resolution, vars[i], Gecode::IRT_EQ, tuples[0][i]);
+                //    }
+
+                //} else {
                 Gecode::extensional(*space_resolution, vars, tuples, Gecode::EPK_DEF, Gecode::ICL_DOM);
-
+                //}
             }
+
+            //Gecode::branch(*s, s->iv, Gecode::INT_VAR_NONE(), Gecode::INT_VAL_MIN());
+            //Gecode::branch(*s, s->iv, Gecode::TieBreak<Gecode::IntVarBranch>(Gecode::INT_VAR_NONE()), Gecode::INT_VALUES_MIN());
+            /* Problem with args :S
+            if(s->args_iv.size()) {
+            	for(int i = 0; i < s->args_iv.size(); i++) {
+            		Gecode::branch(*s, s->args_iv[i], s->branch_var_iv[i], s->branch_val_iv[i]);
+            	}
+            }
+            if(s->args_bv.size()) {
+            	Gecode::branch(*s, s->args_bv, s->branch_var_bv, s->branch_val_bv);
+            }
+            if(s->args_sv.size()) {
+            	Gecode::branch(*s, s->args_sv, s->branch_var_sv, s->branch_val_sv);
+            }
+            if(s->args_fv.size()) {
+            	Gecode::branch(*s, s->args_fv, s->branch_var_fv, s->branch_val_fv);
+            }
+            */
 
             if(index_tuple_last+1 > std::max(nb_int_tuples, nb_bool_tuples)) {
                 //delete engine()._tuples_bool_resolution[engine()._current_index_group_tuple_resolution];
@@ -754,16 +898,17 @@ EPS_DFS::Worker::find(void) {
 
             cur = space_resolution;
 
-
-
             engine()._current_problem++;
         }
+
     } else if(engine()._nb_workers_decomposition_done == engine().workers()) {
-        //std::cerr << "finish" << std::endl;
+
         // Report that worker is idle
         if(!done) {
-            done = true;
             engine().idle();
+
+
+            done = true;
 
             //FINISH
             if(engine().getBusyWorkers() == 0) {
@@ -777,9 +922,8 @@ EPS_DFS::Worker::find(void) {
                 engine()._already_timer_max_inactivity_started = true;
             }
         }
-        //engine().release(C_TERMINATE);
-    }
 
+    }
     engine().unlockFindJobResolution();
 
 }
@@ -1089,14 +1233,13 @@ EPS_DFS::Worker::decomposeProblems(MyFlatZincSpace* s, const MySearchOptions& o)
 
                     engine().solution(solution);
                     nb_solutions++;
-                    //std::cerr << "Best solution found in dfs decomposition\n";
 
                 } else {
 
                     Gecode::IntArgs tuple_int;
                     Gecode::IntArgs tuple_bool;
 
-                    //no add the objective val int tuple
+
                     for (unsigned int i = 0; i < level; i++) {
                         //std::cerr << i+1 << " : " << solution->iv[i].val() << std::endl;
                         if(i < nb_bool_decision_variables) {
@@ -1469,11 +1612,12 @@ EPS_DFS::Worker::RDFS(MyFlatZincSpace* s, const MySearchOptions& o) {
                 }
 */
 		bool isSolution = false;
+//Not a good idea to find solutionn on SAT CSP
                 if(isSolution) {
 
                     //nb_tuples = 0;
 
-                    //this mehod set the best solution
+                    
                     engine().solution(solution);
 
                     nb_solutions++;
@@ -1511,7 +1655,7 @@ EPS_DFS::Worker::RDFS(MyFlatZincSpace* s, const MySearchOptions& o) {
                 Gecode::IntArgs tuple_int;
                 Gecode::IntArgs tuple_bool;
 
-                //no add the objective val int tuple
+                
                 for (unsigned int i = 0; i < level; i++) {
                     //std::cerr << i+1 << " : " << solution->iv[i].val() << std::endl;
                     if(i < nb_bool_decision_variables) {
