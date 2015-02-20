@@ -81,8 +81,7 @@
 
 == 4. EXECUTING ==
 
- Once the project has been installed (see "INSTALLING"), 
- if you have CPLEX installed, export the environment path ILOG_LICENSE_FILE and set on the path your CPLEX Licence
+ Once the project has been installed (see "INSTALLING")
  and execute "bin/Release/eps-gecode".
 
  That's options can be used for the program :
