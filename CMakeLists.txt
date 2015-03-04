@@ -119,9 +119,9 @@ SET (CMAKE_MODULE_PATH "${MAINFOLDER}/tools/share/cmake")
 #LINK_DIRECTORIES(${LPSOLVE_LIBRARY_DIRS})
 
 ################ Gecode ####################
-INCLUDE_DIRECTORIES("~/gecode/")
+INCLUDE_DIRECTORIES("${MAINFOLDER}/gecode/")
 
-LINK_DIRECTORIES("~/gecode/")
+LINK_DIRECTORIES("${MAINFOLDER}/gecode/")
 
 ################ INCLUDE others Libs ####################
 SET (CMAKE_INCLUDE_PATH "${MAINFOLDER}/include")

@@ -58,9 +58,13 @@
   		yum groupinstall "Development Tools"
   	> Ubuntu :
  		apt-get install build-essential	
+
+  * Gecode 
+	install it by executing the script install_gecode.sh
      
 == 2. BUILDING ==
  
+
  This project uses the Cross-platform Make (CMake) build system. However, we
  have conveniently provided a wrapper configure script and Makefile so that
  the typical build invocation of "./configure" followed by "cmake" will work.
